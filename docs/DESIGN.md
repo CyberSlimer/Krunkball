@@ -1,4 +1,4 @@
-# Crunchball 3000 — design notes
+# Krunkball — design notes
 
 ## The original (reference)
 

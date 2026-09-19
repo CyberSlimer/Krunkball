@@ -1,6 +1,6 @@
-# Crunchball 3000 (iOS)
+# Krunkball (iOS)
 
-A native Swift + SpriteKit remake of Ben Olding's 2009 Flash classic *Crunchball 3000*: two teams of ten,
+**Krunkball** is a native Swift + SpriteKit remake of Ben Olding's 2009 Flash classic *Crunchball 3000*: two teams of ten,
 one ball, full-contact, get it in the goal. The long-term plan mirrors the original's structure (four
 divisions, 32 teams, training, equipment, transfers, the fine-risk "supplements") and improves on it
 where the Flash game was rough. See [docs/DESIGN.md](docs/DESIGN.md).
@@ -15,7 +15,7 @@ so there is no `.xcodeproj` checked in.
 ```bash
 brew install xcodegen
 xcodegen generate
-open Crunchball3000.xcodeproj
+open Krunkball.xcodeproj
 ```
 
 Then in Xcode: pick your team under *Signing & Capabilities*, choose an iPhone simulator (landscape) or
@@ -51,13 +51,13 @@ press a button at the same time in the Simulator, since it sends one touch at a 
   carrier drives at goal, sidesteps pressure, shoots in range, and passes to an open teammate when
   closed down. Decisions are throttled (`aiThinkInterval`) so the AI has human-ish reaction time.
 
-All the numbers live in `Crunchball3000/Game/Tuning.swift`.
+All the numbers live in `Krunkball/Game/Tuning.swift`.
 
 ## Layout
 
 ```
 project.yml                        XcodeGen spec
-Crunchball3000/
+Krunkball/
   App/            SwiftUI app entry + UIKit host controller (SKView, keyboard)
   Game/
     Tuning.swift  every gameplay constant

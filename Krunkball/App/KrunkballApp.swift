@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct CrunchballApp: App {
+struct KrunkballApp: App {
     var body: some Scene {
         WindowGroup {
             GameView()
