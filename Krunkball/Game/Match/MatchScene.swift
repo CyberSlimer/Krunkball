@@ -23,7 +23,13 @@ final class MatchScene: SKScene {
     }
 
     let teams: [TeamData]
-    let humanTeam = 0
+    let humanTeam: Int
+    let difficulty: Difficulty
+    let halfLength: TimeInterval
+
+    /// Called once when the match reaches full time, so the menu can show the result and a career
+    /// can bank it. When nil the scene falls back to tap-to-replay, which is what the tests use.
+    var onFinish: ((MatchResult) -> Void)?
 
     let world = SKNode()
     let cam = SKCameraNode()
@@ -36,7 +42,7 @@ final class MatchScene: SKScene {
     /// +1 means the team attacks towards +x, -1 towards -x. Swapped at half time.
     var attackDir: [CGFloat] = [1, -1]
     var half = 1
-    var clock: TimeInterval = Tuning.halfLength
+    var clock: TimeInterval
     var phase: Phase = .kickoff(Tuning.kickoffFreeze)
     var formationIndex = [0, 0]
     /// The human athlete that receives stick input when the human side is not carrying the ball.
@@ -44,8 +50,12 @@ final class MatchScene: SKScene {
     var lastPossessingTeam: Int?
     /// Players assigned to press the ball this frame (see MatchScene+AI).
     var chaserIDs = Set<ObjectIdentifier>()
+    /// Seconds since the human last touched the stick or a key. Past `Tuning.idleHandoffDelay`
+    /// the controlled athlete is handed to the AI so an idle side does not stand and concede.
+    var idleTime: TimeInterval = 0
+    private var reportedResult = false
 
-    /// Match statistics per team, for the balance benchmark and (later) the post-match screen.
+    /// Match statistics per team, for the balance benchmark and the post-match screen.
     struct TeamStats { var shots = 0, saves = 0, tacklesWon = 0, tacklesLost = 0 }
     var stats = [TeamStats(), TeamStats()]
 
@@ -63,6 +73,10 @@ final class MatchScene: SKScene {
         #endif
     }()
 
+    /// The two goal nets, keyed by which side of the deck they sit on, so their tint can be
+    /// swapped at half time along with the attacking directions.
+    private var netAtMinusX: SKShapeNode?
+    private var netAtPlusX: SKShapeNode?
     private var lastTime: TimeInterval = 0
     private var pressedKeys = Set<UIKeyboardHIDUsage>()
 
@@ -71,27 +85,66 @@ final class MatchScene: SKScene {
         return false
     }
 
+    /// True once the human has been idle long enough that the AI has taken over their athlete.
+    var isIdleHandedOff: Bool { idleTime >= Tuning.idleHandoffDelay }
+
     /// The athlete the human is steering right now: the carrier if the human side has the ball, else `selected`.
     var controlledPlayer: PlayerNode? {
         if let c = ball.carrier, c.team == humanTeam { return c }
         return selected
     }
 
-    /// The athlete that actually takes stick input this frame (nobody under autopilot).
-    var humanDriven: PlayerNode? { autopilot ? nil : controlledPlayer }
+    /// The athlete that actually takes stick input this frame (nobody under autopilot, and nobody
+    /// once the idle timer has handed control back to the AI).
+    var humanDriven: PlayerNode? { (autopilot || isIdleHandedOff) ? nil : controlledPlayer }
 
     var scoreline: String { "\(teams[0].shortName) \(score[0]) - \(score[1]) \(teams[1].shortName)" }
+
+    /// Reaction time for this match's AI. Difficulty scales it; casual reacts in about 0.4 s.
+    var thinkInterval: TimeInterval { Tuning.aiThinkInterval * difficulty.thinkMultiplier }
+
+    /// How many athletes team `t` sends at the ball. The AI side presses harder on higher settings.
+    func chaserCount(for t: Int) -> Int {
+        t == humanTeam ? Tuning.aiChasersPerTeam : difficulty.chasers
+    }
 
     func formation(for team: Int) -> Formation { Formation.all[formationIndex[team]] }
     func goalCenter(for team: Int) -> CGPoint { CGPoint(x: attackDir[team] * Tuning.fieldLength / 2, y: 0) }
     func ownGoalCenter(for team: Int) -> CGPoint { CGPoint(x: -attackDir[team] * Tuning.fieldLength / 2, y: 0) }
 
+    func matchResult() -> MatchResult {
+        MatchResult(score: score,
+                    humanTeam: humanTeam,
+                    shots: [stats[0].shots, stats[1].shots],
+                    saves: [stats[0].saves, stats[1].saves],
+                    tacklesWon: [stats[0].tacklesWon, stats[1].tacklesWon])
+    }
+
     // MARK: Lifecycle
 
-    init(teams: [TeamData], size: CGSize) {
-        self.teams = teams
+    init(config: MatchConfig, size: CGSize) {
+        self.teams = config.teams
+        self.humanTeam = config.humanTeam
+        self.difficulty = config.difficulty
+        self.halfLength = config.halfLength
+        self.clock = config.halfLength
         super.init(size: size)
         scaleMode = .resizeFill
+        let shape = clamp(config.formationIndex, 0, Formation.all.count - 1)
+        formationIndex = [shape, 0]
+        if config.humanTeam == 1 { formationIndex = [0, shape] }
+    }
+
+    /// The prototype's entry point, kept so the headless tests and the balance benchmark keep
+    /// driving the scene exactly as before.
+    convenience init(teams: [TeamData], size: CGSize) {
+        self.init(config: MatchConfig(teams: teams,
+                                      humanTeam: 0,
+                                      difficulty: .pro,
+                                      halfLength: Tuning.halfLength,
+                                      formationIndex: 0,
+                                      isCareerMatch: false),
+                  size: size)
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -111,8 +164,9 @@ final class MatchScene: SKScene {
         cam.addChild(hud)
         layoutOverlay()
         hud.setFormation(formation(for: humanTeam).name)
+        hud.setTeams(home: teams[0], away: teams[1])
 
-        resetForKickoff()
+        resetForKickoff(fullRest: true)
         hud.showMessage("KICK OFF", sub: "\(teams[0].name)  vs  \(teams[1].name)")
     }
 
@@ -180,7 +234,8 @@ final class MatchScene: SKScene {
         wall.zPosition = 2
         world.addChild(wall)
 
-        // Goals: a net box behind each end line, with the wall segment in front cut away
+        // Goals: a net box behind each end line, with the wall segment in front cut away. The net
+        // is tinted with the defending side's kit so you can tell at a glance which end is yours.
         for side: CGFloat in [-1, 1] {
             let mouth = SKShapeNode(rectOf: CGSize(width: 40, height: Tuning.goalHalfWidth * 2))
             mouth.position = CGPoint(x: side * (L / 2 + 2), y: 0)
@@ -192,19 +247,30 @@ final class MatchScene: SKScene {
             let net = SKShapeNode(rectOf: CGSize(width: Tuning.goalDepth, height: Tuning.goalHalfWidth * 2))
             net.position = CGPoint(x: side * (L / 2 + Tuning.goalDepth / 2 + 6), y: 0)
             net.fillColor = SKColor(red: 0.1, green: 0.1, blue: 0.12, alpha: 1)
-            net.strokeColor = SKColor(red: 1, green: 0.85, blue: 0.2, alpha: 1)
             net.lineWidth = 4
             net.zPosition = 4
             world.addChild(net)
+            if side > 0 { netAtPlusX = net } else { netAtMinusX = net }
+        }
+        tintGoals()
+    }
+
+    /// Paint each net in the colours of the side defending it. Called again after the half-time
+    /// swap, or the tints would be a half out of date.
+    private func tintGoals() {
+        for t in 0..<2 {
+            guard teams.indices.contains(t) else { continue }
+            // A team defends the goal it does *not* attack.
+            let net = attackDir[t] > 0 ? netAtMinusX : netAtPlusX
+            net?.strokeColor = teams[t].primary
         }
     }
 
     private func buildTeams() {
         for t in 0..<2 {
-            let data = teams[t]
+            let data = teams[t].matchDay()
             for (i, stats) in data.players.enumerated() {
-                let p = PlayerNode(team: t, squadIndex: i, stats: stats, isGoalie: i == 0,
-                                   primary: data.primary, secondary: data.secondary)
+                let p = PlayerNode(team: t, squadIndex: i, stats: stats, isGoalie: i == 0, kit: data.kit)
                 world.addChild(p)
                 players[t].append(p)
             }
@@ -213,7 +279,7 @@ final class MatchScene: SKScene {
 
     // MARK: Phases
 
-    func resetForKickoff() {
+    func resetForKickoff(fullRest: Bool = false) {
         ball.position = .zero
         ball.velocity = .zero
         ball.state = .loose
@@ -222,12 +288,14 @@ final class MatchScene: SKScene {
         ball.airTime = 0
         ball.throwerImmunity = 0
         ball.setAirborne(false)
+        ball.clearTrail()
         lastPossessingTeam = nil
 
         for t in 0..<2 {
             let dir = attackDir[t]
             for p in players[t] {
                 p.resetState()
+                p.restoreStamina(full: fullRest)
                 p.facing = dir > 0 ? 0 : .pi
                 if p.isGoalie {
                     p.position = ownGoalCenter(for: t) + CGVector(dx: dir * 40, dy: 0)
@@ -243,15 +311,19 @@ final class MatchScene: SKScene {
             .filter { !$0.isGoalie }
             .min { $0.position.distance(to: .zero) < $1.position.distance(to: .zero) }
         cam.position = .zero
+        idleTime = 0
+        tintGoals()
         phase = .kickoff(Tuning.kickoffFreeze)
     }
 
     func restartMatch() {
         score = [0, 0]
         half = 1
-        clock = Tuning.halfLength
+        clock = halfLength
         attackDir = [1, -1]
-        resetForKickoff()
+        stats = [TeamStats(), TeamStats()]
+        reportedResult = false
+        resetForKickoff(fullRest: true)
         hud.showMessage("KICK OFF", sub: "\(teams[0].name)  vs  \(teams[1].name)")
     }
 
@@ -276,7 +348,15 @@ final class MatchScene: SKScene {
                     #if DEBUG
                     NSLog("KRUNK fulltime score=%d-%d", score[0], score[1])
                     #endif
-                    hud.showMessage("FULL TIME", sub: "\(scoreline)   -   tap to play again")
+                    if let onFinish = onFinish {
+                        if !reportedResult {
+                            reportedResult = true
+                            hud.showMessage("FULL TIME", sub: scoreline)
+                            onFinish(matchResult())
+                        }
+                    } else {
+                        hud.showMessage("FULL TIME", sub: "\(scoreline)   -   tap to play again")
+                    }
                 }
             }
         case .goal(let t):
@@ -291,9 +371,9 @@ final class MatchScene: SKScene {
             let remaining = t - dt
             if remaining <= 0 {
                 half = 2
-                clock = Tuning.halfLength
+                clock = halfLength
                 attackDir = attackDir.map { -$0 }
-                resetForKickoff()
+                resetForKickoff(fullRest: true)
                 hud.showMessage("2ND HALF")
             } else {
                 phase = .halfTime(remaining)
@@ -312,6 +392,7 @@ final class MatchScene: SKScene {
         ball.state = .loose
         ball.carrier = nil
         ball.setAirborne(false)
+        ball.clearTrail()
         phase = .goal(Tuning.goalCelebration)
         hud.showMessage("GOAL!", sub: "\(teams[team].name)   \(scoreline)")
     }
@@ -322,9 +403,11 @@ final class MatchScene: SKScene {
         let dt: TimeInterval = lastTime == 0 ? 1.0 / 60.0 : min(currentTime - lastTime, 1.0 / 30.0)
         lastTime = currentTime
 
+        trackIdleInput(dt)
         advancePhase(dt)
+        let live = isPlaying
         for team in players {
-            for p in team { p.tick(dt: dt) }
+            for p in team { p.tick(dt: dt, live: live) }
         }
 
         if isPlaying {
@@ -337,12 +420,30 @@ final class MatchScene: SKScene {
             _ = controls.consumePrimary()
             _ = controls.consumeSecondary()
         }
+        ball.updateVisuals(dt: dt)
 
         updateHighlights()
         updateCamera(dt)
         let humanHasBall = ball.carrier != nil && ball.carrier?.team == humanTeam
         controls.setLabels(hasBall: humanHasBall)
-        hud.update(home: teams[0].shortName, away: teams[1].shortName, score: score, clock: clock, half: half)
+        controls.tick(dt: dt, showHint: !autopilot && half == 1 && clock > halfLength - 20)
+        hud.update(score: score, clock: clock, half: half,
+                   controlled: controlledPlayer,
+                   possession: ball.carrier?.team,
+                   handedOff: isIdleHandedOff && !autopilot)
+    }
+
+    /// Grow the idle timer while nobody is steering. Any stick or key input resets it, and so does
+    /// a kickoff, so the human always starts a restart in control.
+    private func trackIdleInput(_ dt: TimeInterval) {
+        if autopilot { return }
+        if controls.isSteering {
+            idleTime = 0
+        } else if isPlaying {
+            idleTime += dt
+        } else {
+            idleTime = 0
+        }
     }
 
     private func runPlayers(_ dt: TimeInterval) {
@@ -382,7 +483,9 @@ final class MatchScene: SKScene {
         switch p.state {
         case .active:
             let mag = min(1, intent.move.length)
-            let target = intent.move.normalized * (p.maxSpeed * mag)
+            // Carrying the ball costs a little pace, so a runner in the clear is not unstoppable.
+            let cap = p.maxSpeed * (p === ball.carrier ? Tuning.carrierSpeedPenalty : 1)
+            let target = intent.move.normalized * (cap * mag)
             let delta = target - p.velocity
             let step = Tuning.acceleration * fdt
             p.velocity = delta.length <= step ? target : p.velocity + delta.normalized * step
@@ -524,9 +627,11 @@ final class MatchScene: SKScene {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
             if case .fullTime = phase {
-                restartMatch()
+                // With a menu attached the result screen takes over; standalone, tap replays.
+                if onFinish == nil { restartMatch() }
                 return
             }
+            idleTime = 0
             let loc = touch.location(in: cam)
             if hud.formationButton.contains(loc) {
                 cycleFormation()
@@ -551,6 +656,7 @@ final class MatchScene: SKScene {
     // MARK: Keyboard input (Simulator / iPad keyboard). Mirrors the original: WASD, G, H, J.
 
     func keyDown(_ code: UIKeyboardHIDUsage) -> Bool {
+        idleTime = 0
         switch code {
         case .keyboardW, .keyboardA, .keyboardS, .keyboardD,
              .keyboardUpArrow, .keyboardDownArrow, .keyboardLeftArrow, .keyboardRightArrow:
@@ -558,7 +664,11 @@ final class MatchScene: SKScene {
             refreshKeyVector()
             return true
         case .keyboardH, .keyboardSpacebar:
-            if case .fullTime = phase { restartMatch() } else { controls.triggerPrimary() }
+            if case .fullTime = phase {
+                if onFinish == nil { restartMatch() }
+            } else {
+                controls.triggerPrimary()
+            }
             return true
         case .keyboardG, .keyboardReturnOrEnter:
             controls.triggerSecondary()

@@ -208,4 +208,100 @@ final class MatchSceneTests: XCTestCase {
             }
         }
     }
+
+    // MARK: Pace, stamina and the idle handoff
+
+    func testStickDeadZoneIgnoresATrembleButNotARealPush() {
+        stepUntilPlaying()
+        scene.controls.setKeyboardVector(CGVector(dx: 0.1, dy: 0))
+        XCTAssertEqual(scene.controls.moveVector.length, 0, accuracy: 0.001,
+                       "a nudge inside the dead zone must not drift the athlete")
+        scene.controls.setKeyboardVector(CGVector(dx: 1, dy: 0))
+        XCTAssertGreaterThan(scene.controls.moveVector.length, 0.9,
+                             "a full push must still reach full speed")
+        scene.controls.setKeyboardVector(.zero)
+    }
+
+    func testSprintingDrainsStaminaAndEasingOffPaysItBack() {
+        // Driven directly rather than through a live match: who the scene hands the stick to
+        // depends on where the ball is, and this is a statement about one athlete's lungs.
+        let kit = League.team(id: "titans")?.kit ?? Kit.fallback
+        let stats = PlayerStats(name: "Test Subject", speed: 60, strength: 60, throwing: 60)
+        let p = PlayerNode(team: 0, squadIndex: 4, stats: stats, isGoalie: false, kit: kit)
+        XCTAssertEqual(p.stamina, 1, accuracy: 0.001)
+        let fresh = p.maxSpeed
+
+        p.velocity = CGVector(dx: fresh, dy: 0)
+        for _ in 0..<(60 * 8) { p.tick(dt: 1.0 / 60.0) }
+        let drained = p.stamina
+        XCTAssertLessThan(drained, 0.9, "eight seconds flat out has to cost something")
+        XCTAssertLessThan(p.maxSpeed, fresh, "a tired athlete is a slower athlete")
+
+        p.velocity = .zero
+        for _ in 0..<(60 * 8) { p.tick(dt: 1.0 / 60.0) }
+        XCTAssertGreaterThan(p.stamina, drained, "easing off has to pay stamina back")
+        XCTAssertLessThanOrEqual(p.stamina, 1)
+    }
+
+    func testAFitterAthleteLastsLonger() {
+        let kit = League.team(id: "titans")?.kit ?? Kit.fallback
+        func drain(speed: Int) -> CGFloat {
+            let p = PlayerNode(team: 0, squadIndex: 4,
+                               stats: PlayerStats(name: "N", speed: speed, strength: 50, throwing: 50),
+                               isGoalie: false, kit: kit)
+            // Same effort fraction for both, so only the fitness term differs.
+            p.velocity = CGVector(dx: p.maxSpeed, dy: 0)
+            for _ in 0..<(60 * 6) { p.tick(dt: 1.0 / 60.0) }
+            return p.stamina
+        }
+        XCTAssertGreaterThan(drain(speed: 90), drain(speed: 20),
+                             "the speed stat doubles as fitness")
+    }
+
+    func testStaminaNeverLeavesItsRange() {
+        stepUntilPlaying()
+        scene.controls.setKeyboardVector(CGVector(dx: 1, dy: 0))
+        step(60 * 60)
+        scene.controls.setKeyboardVector(.zero)
+        for team in scene.players {
+            for p in team {
+                XCTAssertGreaterThanOrEqual(p.stamina, 0)
+                XCTAssertLessThanOrEqual(p.stamina, 1)
+            }
+        }
+    }
+
+    func testControlIsHandedToTheAIAfterASilentSpellAndTakenStraightBack() {
+        stepUntilPlaying()
+        XCTAssertFalse(scene.isIdleHandedOff)
+        step(Int((Tuning.idleHandoffDelay + 0.2) * 60))
+        XCTAssertTrue(scene.isIdleHandedOff, "an idle human side must not stand and watch")
+        XCTAssertNil(scene.humanDriven)
+        scene.controls.setKeyboardVector(CGVector(dx: 1, dy: 0))
+        step()
+        XCTAssertFalse(scene.isIdleHandedOff, "the first input takes the athlete straight back")
+        XCTAssertNotNil(scene.humanDriven)
+        scene.controls.setKeyboardVector(.zero)
+    }
+
+    func testDifficultyChangesTheAIsReactionTimeAndPress() {
+        let casual = MatchScene(config: MatchConfig.quick(difficulty: .casual), size: view.bounds.size)
+        let brutal = MatchScene(config: MatchConfig.quick(difficulty: .brutal), size: view.bounds.size)
+        XCTAssertGreaterThan(casual.thinkInterval, brutal.thinkInterval)
+        XCTAssertLessThan(casual.chaserCount(for: 1), brutal.chaserCount(for: 1))
+        // Your own side always presses with the same number, whatever the setting.
+        XCTAssertEqual(casual.chaserCount(for: 0), brutal.chaserCount(for: 0))
+    }
+
+    func testFullTimeReportsAResultToTheMenuExactlyOnce() {
+        var results: [MatchResult] = []
+        scene.onFinish = { results.append($0) }
+        scene.clock = 0.05
+        scene.half = 2
+        stepUntilPlaying()
+        step(60 * 3)
+        XCTAssertEqual(results.count, 1, "the menu must be told once and only once")
+        XCTAssertEqual(results.first?.score, scene.score)
+        XCTAssertEqual(results.first?.humanTeam, scene.humanTeam)
+    }
 }

@@ -1,8 +1,22 @@
 import UIKit
 import SpriteKit
 
+/// Hosts the SpriteKit match. UIKit rather than pure SwiftUI so the SKView can be first responder
+/// and receive hardware-keyboard presses (handy in the Simulator and on an iPad).
 final class GameViewController: UIViewController {
     private var matchScene: MatchScene?
+    private let config: MatchConfig
+    private let onFinish: (MatchResult) -> Void
+
+    init(config: MatchConfig, onFinish: @escaping (MatchResult) -> Void) {
+        self.config = config
+        self.onFinish = onFinish
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     override func loadView() {
         view = SKView()
@@ -23,8 +37,14 @@ final class GameViewController: UIViewController {
         skView.showsFPS = true
         #endif
 
-        let scene = MatchScene(teams: Roster.demoTeams(), size: skView.bounds.size)
+        let scene = MatchScene(config: config, size: skView.bounds.size)
         scene.safeInsets = view.safeAreaInsets
+        scene.onFinish = { [weak self] result in
+            // Let the FULL TIME card sit for a beat before the result screen slides over it.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                self?.onFinish(result)
+            }
+        }
         matchScene = scene
         skView.presentScene(scene)
     }

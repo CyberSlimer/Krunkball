@@ -1,5 +1,107 @@
 # Handoff
 
+## 2026-09-19 — playtest feedback: controls, pace, teams, athletes
+
+Four things came back from the first real playthrough. All four are addressed here.
+**Nothing in this session was compiled or run** — it was written on a Linux box with no Xcode, so
+`xcodegen generate` + build + `xcodebuild test` is the first job on the Mac.
+
+### 1. "There was no toggle to move the player, just pass and kick on the right"
+
+This was real, and it was the worst bug in the build: `TouchControls` created the stick with
+`isHidden = true` and only revealed it once a finger already landed on the left half. With nothing
+drawn there, the two right-hand buttons were the only visible controls, so there was no way to know
+movement existed. Compounding it, `HANDOFF` already noted that an unsteered human side just stands
+still — so the match looked broken as well as unplayable.
+
+- The stick is now **always drawn**, parked bottom-left with a four-way glyph and a `MOVE` caption,
+  and brightens when held. It still jumps to wherever your thumb lands (anywhere in the left 55%).
+- Added `Tuning.stickDeadZone` (0.14) so a resting thumb does not drift the athlete.
+- A **DRAG HERE TO MOVE** prompt pulses next to the stick for the first 20 s of the first half and
+  vanishes on the first input.
+- Button hit areas are circular with a 12 pt margin instead of `SKShapeNode.contains`.
+- **Idle handoff**: after `Tuning.idleHandoffDelay` (1.5 s) with no stick or key input, the AI takes
+  the controlled athlete and the HUD says so. Any input takes it straight back.
+- The menu now has a HOW TO PLAY panel listing every control, touch and keyboard.
+
+### 2. "It played really fast"
+
+A pace pass rather than a field resize — the arena is unchanged, so the AI tuning and formation
+slots still hold:
+
+- Top speed down ~22% (`baseSpeed` 170→132, `speedPerStat` 1.5→1.15), acceleration 1100→880.
+  An athlete now crosses the deck in about 8 s instead of 6.
+- Pass 640→520, shot 860→720 base; a little more air time and more grip on a loose ball.
+- Halves 90 s → **120 s**, so a possession has room to develop.
+- Camera pulled back: `cameraVisibleHeight` 640→700, follow rate 6→5.2.
+- **Stamina**: sprinting above 55% of top speed drains it, easing off pays it back, and a tired
+  athlete is slower (floor 0.74x). The speed stat doubles as fitness. Full rest at each half,
+  a 0.4 top-up at the kickoff after a goal. Frozen play never drains it.
+- Carrying the ball costs 7% of your pace (`carrierSpeedPenalty`).
+
+**If it still reads too fast**, the next lever is the deck itself — scale `Tuning.fieldLength` /
+`fieldWidth` *and* every `Formation` slot together, then re-run `BalanceBenchmark`. Everything else
+is already tuned down.
+
+### 3. "It felt like hard difficulty"
+
+It effectively was: one setting, 0.15 s reactions, three pressers. Now `Difficulty` (casual / pro /
+brutal) changes three things at once — AI reaction time (x2.2 / x1.0 / x0.7), how many opponents
+press (2 / 3 / 4), and the opposition's stats (-9 / 0 / +9 across the board). **Your own squad is
+never rescaled.** Pro is the setting the balance benchmark targets. Picked on the title menu.
+
+### 4. "Pick your teams, recruit the players, like the original"
+
+- **The full ladder**: 32 teams over 4 divisions (`Krunkball/Game/Model/League.swift`), each squad
+  generated from a fixed seed so a team is the same team on every device. The two demo squads are
+  in there as Division 2 entries at their original seeds, so `BalanceBenchmark` is unchanged.
+- **Menus are SwiftUI** now (`Krunkball/App/Menu/`), with SpriteKit kept for the match only. The
+  scene takes a `MatchConfig` and hands back a `MatchResult` — it knows nothing about careers.
+- **Quick match**: pick your squad, then your opponent, off the ladder.
+- **Career**: take over any club, start with 120 credits and a home-and-away fixture list against
+  your seven divisional rivals. Squad screen with a starting ten (tap two athletes to swap, slot GK
+  plays in goal) and a **transfer market** of twelve free agents priced off overall — sign up to a
+  14-man squad, release for half the fee back. Results pay gate money. Saved as JSON in
+  `UserDefaults` via `CareerStore`, written after every signing and every result.
+- **Result screen**: `MatchScene.stats` was being collected and never shown. It is shown now.
+
+### 5. "Something more in depth than a little circle"
+
+`PlayerNode` is drawn rather than filled: helmet with a crest stripe and a cyan visor that shows
+which way the athlete is turned, shoulder pads, a wedge torso in the kit colours, a squad number
+down the back, and arms and legs that swing on a stride cycle driven by distance covered (so a
+walking athlete does not paddle at sprint tempo). Build comes from the stats — a strength-heavy
+blocker is visibly broader than a speed-heavy runner. Dive and sprawl poses for tackles and
+knockdowns. Keepers wear the kit inverted. Selection is a marker at the feet, not a ring round the
+body. The ball got a seam that spins and a fading trail in flight.
+
+Roles (BLOCKER / RUNNER / GUNNER / ALL-ROUND) are derived from the stats, not stored, so training a
+player later will move them between roles for free.
+
+### Tests
+
+- `CareerTests` is new: ladder shape, divisions descending in strength, deterministic markets,
+  signing / releasing / swapping, results and gate money, JSON round trip, roles and values,
+  difficulty only touching the opposition.
+- `MatchSceneTests` gained: stick dead zone, stamina drain and recovery (driven on a bare
+  `PlayerNode` so it does not depend on where the ball is), fitness from the speed stat, the idle
+  handoff, difficulty wiring, and full time reporting a result exactly once.
+- `BalanceBenchmark` now asserts **goals per minute** (0.5-1.6) instead of goals per match, so it
+  survives the half-length change. **Re-run it first on the Mac** — the pace pass moves the
+  scoring rate and the numbers here are reasoned, not measured.
+
+### Known / next
+
+- Nothing here is compiled. Expect a round of build errors; the SwiftUI menu files are the least
+  exercised code in the repo.
+- Roadmap item 1 leftovers still open: haptics on tackles and goals, a short hit-stop on big hits.
+- The career has no league table — the AI sides do not play each other's fixtures, so there are no
+  standings and no promotion or relegation yet. That is the next obvious chunk.
+- No training / equipment / supplements yet (roadmap item 3).
+- The Simulator sends one touch at a time, so test stick-plus-button on a device.
+- `CareerStore` is `UserDefaults` JSON under `krunkball.career.v1`. Bump the key on any `Career`
+  shape change rather than letting old saves fail to decode.
+
 ## 2026-09-18 — first Mac build, feel pass, tests
 
 - Compiled first time on the Mac with **zero errors** (Xcode 26.6, iOS 18.6 simulator). Runs at 60 fps.
@@ -37,11 +139,15 @@
   (`-destination 'generic/platform=iOS' -allowProvisioningUpdates archive`), then
   `xcodebuild -exportArchive -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates`.
 
-## Known / next
+## Known / next (as of 2026-09-18 — see the 2026-09-19 entry above for what has since been done)
 
-- Human side with no input concedes constantly (the controlled carrier just stands there). Consider
-  falling back to AI for the controlled athlete when the stick has been idle for ~1.5 s.
-- The controlled athlete's white ring can sit under the score panel when play is at the top edge.
-- Roadmap item 1 leftovers: haptics on tackles/goals, hit-stop, ball trail, stick dead zone.
+- ~~Human side with no input concedes constantly (the controlled carrier just stands there). Consider
+  falling back to AI for the controlled athlete when the stick has been idle for ~1.5 s.~~ Done: the
+  idle handoff.
+- ~~The controlled athlete's white ring can sit under the score panel when play is at the top edge.~~
+  Done: the HUD panel sits tighter to the top edge and the selection marker is at the feet.
+- ~~Roadmap item 1 leftovers: haptics on tackles/goals, hit-stop, ball trail, stick dead zone.~~
+  Ball trail and stick dead zone done; haptics and hit-stop still open.
 - The Simulator sends one touch at a time, so test touch controls (stick + button together) on a device.
-- `MatchScene.stats` is collected but not shown anywhere yet — a post-match stats screen is a cheap win.
+- ~~`MatchScene.stats` is collected but not shown anywhere yet — a post-match stats screen is a cheap win.~~
+  Done: the result screen.

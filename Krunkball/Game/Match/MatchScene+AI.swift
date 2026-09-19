@@ -16,7 +16,7 @@ extension MatchScene {
             let sorted = players[t]
                 .filter { !$0.isGoalie && !$0.isDown && $0 !== human }
                 .sorted { $0.position.distance(to: ball.position) < $1.position.distance(to: ball.position) }
-            for p in sorted.prefix(Tuning.aiChasersPerTeam) {
+            for p in sorted.prefix(chaserCount(for: t)) {
                 chaserIDs.insert(ObjectIdentifier(p))
             }
         }
@@ -83,7 +83,7 @@ extension MatchScene {
         intent.move = (lead - p.position).normalized
         let dist = p.position.distance(to: c.position)
         if dist < Tuning.playerRadius * 2 + 34 && p.tackleCooldown <= 0 && p.thinkTimer <= 0 {
-            p.thinkTimer = Tuning.aiThinkInterval
+            p.thinkTimer = thinkInterval
             intent.tackle = true
         }
         return intent
@@ -115,7 +115,7 @@ extension MatchScene {
         intent.aim = move
 
         if p.thinkTimer <= 0 {
-            p.thinkTimer = Tuning.aiThinkInterval
+            p.thinkTimer = thinkInterval
             let shootRange = Tuning.aiShootRange + CGFloat(p.stats.throwing) * 1.6
             let underPressure = pressure < Tuning.aiPressureDistance
             if distGoal < Tuning.aiCloseShotRange {

@@ -21,6 +21,8 @@ Rotate the Simulator to landscape (⌘←); the app only supports landscape.
 
 - `KRUNKBALL_AUTOPILOT=1` in the environment hands the human side to the AI — AI vs AI, for
   balance testing. With simctl: `SIMCTL_CHILD_KRUNKBALL_AUTOPILOT=1 xcrun simctl launch <udid> com.rprobst.krunkball`.
+- Separately, after `Tuning.idleHandoffDelay` with no input the AI takes over the controlled
+  athlete, so a parked human side plays on. Any stick or key input takes it straight back.
 - Every goal and the full-time score are `NSLog`ged with prefix `KRUNK` in DEBUG builds. Read them with
   `xcrun simctl spawn <udid> log show --last 5m --predicate 'process == "Krunkball" AND eventMessage CONTAINS "KRUNK"'`.
 - Hardware keyboard works in the Simulator: WASD move, H pass/switch, G shoot/tackle, J formation.
@@ -32,4 +34,10 @@ Rotate the Simulator to landscape (⌘←); the app only supports landscape.
 - `project.yml` is the source of truth for the Xcode project. Add new Swift files under `Krunkball/` and
   re-run `xcodegen generate`; don't hand-edit the `.xcodeproj`.
 - LF line endings (`.gitattributes`), edited from both a Windows PC and this Mac.
-- Balance target for AI vs AI: roughly 2–4 goals per side over the 2 × 90 s match.
+- Balance target for AI vs AI: roughly **0.7–1.3 total goals per minute** of match clock (that is
+  2–4 goals a side over the old 2 × 90 s). `BalanceBenchmark` asserts the per-minute rate, so it
+  survives a change to `Tuning.halfLength` — which is now 120 s a half.
+- Menus are SwiftUI (`Krunkball/App/Menu/`), the match is SpriteKit. The scene takes a `MatchConfig`
+  and hands back a `MatchResult`; it knows nothing about careers, leagues or navigation.
+- A career save is JSON in `UserDefaults` (`CareerStore`). Changing `Career`'s shape means bumping
+  the store key, not silently breaking old saves.
