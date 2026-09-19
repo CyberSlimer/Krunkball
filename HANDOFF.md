@@ -25,6 +25,18 @@
 - Debug: `KRUNKBALL_AUTOPILOT=1` env (AI plays the human side), `KRUNK` goal / full-time NSLog lines,
   `MatchScene.stats` (shots / saves / tackles per team). Placeholder app icon added.
 
+## TestFlight (2026-09-18)
+
+- ASC record **Krunkball**, App ID 6813724028, bundle `com.rprobst.krunkball`, SKU `krunkball`, team 5X895J3VYD.
+- Build **0.1.0 (1)** uploaded and processed; export compliance answered "none"; `ITSAppUsesNonExemptEncryption`
+  is now in `project.yml` so later builds skip the prompt.
+- Internal group **Krunkball Testers** (auto-distribution on) with `ryan.j.probst@icloud.com` (account holder).
+  `rprobst93@gmail.com` is an Admin whose ASC invitation has expired — resend under Users and Access if it
+  should test too.
+- Next build: bump `CURRENT_PROJECT_VERSION` in `project.yml`, `xcodegen generate`, archive
+  (`-destination 'generic/platform=iOS' -allowProvisioningUpdates archive`), then
+  `xcodebuild -exportArchive -exportOptionsPlist ExportOptions.plist -allowProvisioningUpdates`.
+
 ## Known / next
 
 - Human side with no input concedes constantly (the controlled carrier just stands there). Consider
