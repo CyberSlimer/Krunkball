@@ -41,6 +41,12 @@ Benchmark after: **2.6–2.5, 2.9–2.4, 2.7–2.4** over three runs, ~1.3 goals
   ball state) or in `resolveContacts` pair order. Goals are inside the target either way.
 - The Simulator screenshot pipeline rotates; the app itself is fine.
 
+### TestFlight
+
+- Build **0.1.0 (2)** archived and uploaded 2026-09-19 19:36 (`ExportOptions.plist` uploads
+  directly; no prompt thanks to the export-compliance key). Auto-distributes to Krunkball Testers
+  once App Store Connect finishes processing.
+
 ### Housekeeping
 
 - `xcodebuild -destination 'platform=iOS Simulator,name=iPhone 16 Pro Max'` failed to resolve the
