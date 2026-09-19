@@ -122,9 +122,9 @@ final class CareerTests: XCTestCase {
     func testResultsBookPointsGoalsAndGateMoney() {
         var career = Career.new(clubID: "tarpits", difficulty: .pro)
         let start = career.credits
-        career.record(homeGoals: 3, awayGoals: 1)
-        career.record(homeGoals: 0, awayGoals: 2)
-        career.record(homeGoals: 1, awayGoals: 1)
+        career.bankResult(homeGoals: 3, awayGoals: 1)
+        career.bankResult(homeGoals: 0, awayGoals: 2)
+        career.bankResult(homeGoals: 1, awayGoals: 1)
         XCTAssertEqual(career.record.played, 3)
         XCTAssertEqual(career.record.won, 1)
         XCTAssertEqual(career.record.lost, 1)
@@ -140,7 +140,7 @@ final class CareerTests: XCTestCase {
         var career = Career.new(clubID: "monsoon", difficulty: .brutal)
         career.credits = 100_000
         if let signing = career.market.first { career.sign(signing) }
-        career.record(homeGoals: 2, awayGoals: 2)
+        career.bankResult(homeGoals: 2, awayGoals: 2)
         let data = try JSONEncoder().encode(career)
         let restored = try JSONDecoder().decode(Career.self, from: data)
         XCTAssertEqual(restored, career)

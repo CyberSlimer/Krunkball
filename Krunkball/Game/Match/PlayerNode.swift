@@ -236,7 +236,8 @@ final class PlayerNode: SKNode {
     }
 
     private func buildNumber(trim: KitColor) {
-        numberLabel.text = isGoalie ? "1" : "\(squadIndex + 1)"
+        // Matches the squad screen: the keeper is K, outfielders are their slot 1-9.
+        numberLabel.text = isGoalie ? "K" : "\(squadIndex)"
         numberLabel.fontSize = r * 0.5
         numberLabel.fontColor = trim.color
         numberLabel.verticalAlignmentMode = .center

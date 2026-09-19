@@ -97,7 +97,8 @@ final class TouchControls: SKNode {
         let a = Tuning.stickRadius * 0.62
         let b = Tuning.stickRadius * 0.40
         let tip = Tuning.stickRadius * 0.16
-        for angle in [CGFloat(0), .pi / 2, .pi, .pi * 3 / 2] {
+        let angles: [CGFloat] = [0, .pi / 2, .pi, .pi * 3 / 2]
+        for angle in angles {
             let dir = CGVector(angle: angle)
             let side = dir.perpendicular
             let point = CGPoint(x: dir.dx * a, y: dir.dy * a)

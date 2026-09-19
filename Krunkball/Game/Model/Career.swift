@@ -124,7 +124,8 @@ struct Career: Codable, Equatable {
     // MARK: Results
 
     /// Book the result and pay the gate: a win earns more, and goals always earn something.
-    mutating func record(homeGoals: Int, awayGoals: Int) {
+    /// Named `bankResult` rather than `record` so it cannot be confused with the `record` property.
+    mutating func bankResult(homeGoals: Int, awayGoals: Int) {
         record.played += 1
         record.goalsFor += homeGoals
         record.goalsAgainst += awayGoals

@@ -90,10 +90,42 @@ player later will move them between roles for free.
   survives the half-length change. **Re-run it first on the Mac** — the pace pass moves the
   scoring rate and the numbers here are reasoned, not measured.
 
+### Audit pass (same session, no compiler)
+
+A second read hunting specifically for things that would not compile, since there was no Xcode.
+Found and fixed:
+
+- **Key paths into tuples.** `ForEach(Array(x.enumerated()), id: \.element.id)` in `TeamPickerView`
+  and `ClubView`. Swift does not do key paths to tuple members. Both now index by slot / by the
+  division's own id instead, which also removed the index clamping.
+- **`Career.record` was both a stored property and a method** (`record(homeGoals:awayGoals:)`).
+  The method is now `bankResult(homeGoals:awayGoals:)`.
+- **A result-screen race.** `AppModel.finishMatch` cleared `pendingConfig` while `screen` was still
+  `.match`. Those are two separate publishes, and a re-render in the gap lands on the empty-config
+  branch, which bounces to the menu instead of showing the result. It no longer clears it — the
+  next match overwrites it.
+- **`.frame(maxWidth: wide ? .infinity : nil)`** — an implicit member on the wrapped type of an
+  optional. Spelled out as a `CGFloat?` computed property.
+- **`[CGFloat(0), .pi / 2, ...]`** — a heterogeneous literal array leaning on inference. Now an
+  explicit `[CGFloat]`.
+- **`TeamPickerView`** got a written-out `init` rather than relying on the synthesized memberwise
+  one, since it is built from another file and also carries private state. Its `private let columns`
+  became a computed property.
+- **Stamina drained off a stale velocity while play was frozen** (velocities are not cleared during
+  a celebration, and `apply` does not run). `PlayerNode.tick` now takes `live:`.
+- **Goal-net tints went stale after the half-time swap** — the nets are built once. They are now
+  re-tinted at every kickoff.
+- Shirt numbers now match the squad screen (K, then 1-9).
+
+Cross-checked by script: brace/paren balance across all 25 files, every `Tuning.*`, `Deck.*`,
+`Difficulty.*` and `League.*` reference against its declaration, and every `controls.*`, `ball.*`
+and `PlayerNode` member reference against what those types actually declare. All resolve.
+
 ### Known / next
 
-- Nothing here is compiled. Expect a round of build errors; the SwiftUI menu files are the least
-  exercised code in the repo.
+- Still not compiled. The audit above removed the errors I could find by reading; what is left is
+  most likely SwiftUI type-inference complaints in the menu files, which are the least exercised
+  code in the repo. `Krunkball/App/Menu/` is where to look first.
 - Roadmap item 1 leftovers still open: haptics on tackles and goals, a short hit-stop on big hits.
 - The career has no league table — the AI sides do not play each other's fixtures, so there are no
   standings and no promotion or relegation yet. That is the next obvious chunk.

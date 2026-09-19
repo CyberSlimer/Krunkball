@@ -124,9 +124,11 @@ final class AppModel: ObservableObject {
     func finishMatch(_ result: MatchResult) {
         lastResult = result
         if lastMatchWasCareer {
-            updateCareer { $0.record(homeGoals: result.humanGoals, awayGoals: result.opponentGoals) }
+            updateCareer { $0.bankResult(homeGoals: result.humanGoals, awayGoals: result.opponentGoals) }
         }
-        pendingConfig = nil
+        // `pendingConfig` is deliberately left alone. Clearing it here publishes a change while
+        // `screen` is still `.match`, and a re-render in that gap lands on the empty-config branch,
+        // which bounces to the menu instead of showing the result. The next match overwrites it.
         go(.result)
     }
 

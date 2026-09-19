@@ -62,6 +62,13 @@ struct DeckButtonStyle: ButtonStyle {
     var tint: Color = Deck.accent
     var wide = false
 
+    /// Spelled out rather than `wide ? .infinity : nil`: an implicit member on the wrapped type of
+    /// an optional is exactly the kind of expression the type checker argues about.
+    private var widthLimit: CGFloat? {
+        guard wide else { return nil }
+        return CGFloat.infinity
+    }
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 15, weight: .heavy, design: .rounded))
@@ -69,7 +76,7 @@ struct DeckButtonStyle: ButtonStyle {
             .foregroundColor(.white)
             .padding(.vertical, 12)
             .padding(.horizontal, 22)
-            .frame(maxWidth: wide ? .infinity : nil)
+            .frame(maxWidth: widthLimit)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(tint.opacity(configuration.isPressed ? 0.55 : 0.85))

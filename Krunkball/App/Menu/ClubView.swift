@@ -143,8 +143,12 @@ struct ClubView: View {
                              sub: "Tap two athletes to swap them. Slot GK plays in goal.")
                 ScrollView {
                     VStack(spacing: 5) {
-                        ForEach(Array(career.lineup.enumerated()), id: \.element.id) { index, player in
-                            squadRow(player, slot: index == 0 ? "GK" : "\(index)", starting: true)
+                        // Indexed by slot rather than by `enumerated()`: a key path into a tuple
+                        // (`\.element.id`) is not something Swift supports.
+                        ForEach(Array(career.lineup.indices), id: \.self) { index in
+                            squadRow(career.lineup[index],
+                                     slot: index == 0 ? "GK" : "\(index)",
+                                     starting: true)
                         }
                         if !career.bench.isEmpty {
                             SectionTitle(text: "BENCH")

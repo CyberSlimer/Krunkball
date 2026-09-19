@@ -10,13 +10,31 @@ struct TeamPickerView: View {
     let onPick: (TeamData) -> Void
     let onBack: () -> Void
 
-    @State private var divisionIndex: Int = 0
+    /// Written out rather than left to the synthesized memberwise initializer: this view is built
+    /// from another file and it also carries private state, which is exactly where the memberwise
+    /// initializer's access level gets interesting.
+    init(title: String, subtitle: String, excluding: Set<String> = [],
+         onPick: @escaping (TeamData) -> Void, onBack: @escaping () -> Void) {
+        self.title = title
+        self.subtitle = subtitle
+        self.excluding = excluding
+        self.onPick = onPick
+        self.onBack = onBack
+    }
+
+    /// Selection is by division number, not by index into the array: no clamping, and no key path
+    /// into a tuple (Swift does not do those).
+    @State private var selectedDivision = 1
 
     private var divisions: [Division] { League.divisions }
 
-    private var division: Division { divisions[min(divisionIndex, divisions.count - 1)] }
+    private var division: Division {
+        divisions.first { $0.id == selectedDivision } ?? divisions[0]
+    }
 
-    private let columns = [GridItem(.adaptive(minimum: 214, maximum: 280), spacing: 10)]
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: 214, maximum: 280), spacing: 10)]
+    }
 
     var body: some View {
         ZStack {
@@ -63,9 +81,9 @@ struct TeamPickerView: View {
 
     private var divisionTabs: some View {
         HStack(spacing: 8) {
-            ForEach(Array(divisions.enumerated()), id: \.element.id) { index, div in
+            ForEach(divisions) { div in
                 Button {
-                    divisionIndex = index
+                    selectedDivision = div.id
                 } label: {
                     VStack(spacing: 1) {
                         Text("DIV \(div.id)")
@@ -76,12 +94,12 @@ struct TeamPickerView: View {
                             .kerning(0.6)
                             .opacity(0.7)
                     }
-                    .foregroundColor(divisionIndex == index ? .white : Deck.dim)
+                    .foregroundColor(selectedDivision == div.id ? .white : Deck.dim)
                     .padding(.vertical, 7)
                     .frame(maxWidth: .infinity)
                     .background(
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(divisionIndex == index ? Deck.accent.opacity(0.8) : Color.white.opacity(0.04))
+                            .fill(selectedDivision == div.id ? Deck.accent.opacity(0.8) : Color.white.opacity(0.04))
                     )
                 }
                 .buttonStyle(.plain)
