@@ -51,10 +51,12 @@ enum League {
         Entry(id: "redguard", name: "Vostok Red Guard", shortName: "RED GUARD", quality: 72, seed: 9108,
               kit: kit(KitColor(0.72, 0.10, 0.14), ink, gold)),
 
-        // Division 2 — the Orbital Conference. The two demo squads live here.
-        Entry(id: "titans", name: "Neo Tokyo Titans", shortName: "TITANS", quality: 60, seed: 3322,
+        // Division 2 — the Orbital Conference. The two demo squads live here. Their seeds were
+        // searched under the current generator so the two profile within a point of each other on
+        // every stat (the balance benchmark leans on that); reseed them if `Roster.player` changes.
+        Entry(id: "titans", name: "Neo Tokyo Titans", shortName: "TITANS", quality: 60, seed: 4250,
               kit: kit(KitColor(0.15, 0.55, 1.0), white, white)),
-        Entry(id: "crushers", name: "Mars Colony Crushers", shortName: "CRUSHERS", quality: 60, seed: 3189,
+        Entry(id: "crushers", name: "Mars Colony Crushers", shortName: "CRUSHERS", quality: 60, seed: 7529,
               kit: kit(KitColor(0.95, 0.25, 0.20), ink, white)),
         Entry(id: "tbirds", name: "Lagos Thunderbirds", shortName: "T-BIRDS", quality: 63, seed: 9203,
               kit: kit(KitColor(0.12, 0.62, 0.42), white, gold)),

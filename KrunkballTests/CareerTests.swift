@@ -37,11 +37,15 @@ final class CareerTests: XCTestCase {
         XCTAssertEqual(demo.count, 2)
         XCTAssertEqual(demo[0].id, "titans")
         XCTAssertEqual(demo[1].id, "crushers")
-        // The balance benchmark leans on these two being evenly matched.
-        // Both are generated at quality 60 from fixed seeds, so this is a drift alarm rather than
-        // a tight bound: a few points either way is roster noise, a big gap means a reseed is due.
-        XCTAssertLessThanOrEqual(abs(demo[0].rating - demo[1].rating), 6,
-                                 "demo squads drifted apart: \(demo[0].rating) vs \(demo[1].rating)")
+        // The balance benchmark leans on these two being evenly matched, stat by stat: a 4-point
+        // throwing gap once showed up as a 2:1 scoreline. The seeds were searched to match within a
+        // point per stat, so any drift here means the generator changed and a reseed is due.
+        for (label, key) in [("speed", \TeamData.averageSpeed), ("strength", \TeamData.averageStrength),
+                             ("throwing", \TeamData.averageThrowing), ("rating", \TeamData.rating)] {
+            XCTAssertLessThanOrEqual(abs(demo[0][keyPath: key] - demo[1][keyPath: key]), 1,
+                                     "demo squads drifted apart on \(label): \(demo[0][keyPath: key]) vs \(demo[1][keyPath: key])")
+        }
+        XCTAssertLessThanOrEqual(abs(demo[0].players[0].overall - demo[1].players[0].overall), 2, "keepers drifted apart")
     }
 
     func testNewCareerStartsWithTheClubSquadAndAMarket() {

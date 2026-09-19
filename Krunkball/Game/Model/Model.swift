@@ -251,8 +251,8 @@ enum Roster {
     /// The prototype's two squads, kept as the default quick-match pairing and as the fixed
     /// input to the balance benchmark. Seeds were picked so both sides profile the same.
     static func demoTeams() -> [TeamData] {
-        [League.team(id: "titans") ?? fallbackTeam(id: "titans", name: "Neo Tokyo Titans", short: "TITANS", seed: 3322),
-         League.team(id: "crushers") ?? fallbackTeam(id: "crushers", name: "Mars Colony Crushers", short: "CRUSHERS", seed: 3189)]
+        [League.team(id: "titans") ?? fallbackTeam(id: "titans", name: "Neo Tokyo Titans", short: "TITANS", seed: 4250),
+         League.team(id: "crushers") ?? fallbackTeam(id: "crushers", name: "Mars Colony Crushers", short: "CRUSHERS", seed: 7529)]
     }
 
     private static func fallbackTeam(id: String, name: String, short: String, seed: UInt64) -> TeamData {

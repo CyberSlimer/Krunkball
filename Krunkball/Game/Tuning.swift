@@ -62,6 +62,7 @@ enum Tuning {
     // MARK: Match
     static let halfLength: TimeInterval = 120
     static let kickoffFreeze: TimeInterval = 1.6
+    static let kickoffClearance: CGFloat = 170        // the receiving side is held this far back from the spot
     static let goalCelebration: TimeInterval = 2.4
     static let halfTimePause: TimeInterval = 2.5
 

@@ -73,6 +73,11 @@ final class MatchSceneTests: XCTestCase {
 
     func testStickMovesTheControlledAthlete() {
         stepUntilPlaying()
+        // Park the ball in a far corner so nobody presses the athlete while we measure the stick.
+        scene.ball.carrier = nil
+        scene.ball.state = .loose
+        scene.ball.position = CGPoint(x: -Tuning.fieldLength / 2 + 40, y: Tuning.fieldWidth / 2 - 40)
+        step()
         let p = human
         let start = p.position
         scene.controls.setKeyboardVector(CGVector(dx: 1, dy: 0))
@@ -126,6 +131,8 @@ final class MatchSceneTests: XCTestCase {
         p.position = CGPoint(x: -(Tuning.playerRadius * 2 + 24), y: 0)
         p.velocity = .zero
         p.facing = 0
+        scene.ball.carrier = nil               // the home kicker starts with it in hand
+        scene.ball.state = .loose
         scene.ball.position = victim.position + CGVector(dx: Tuning.playerRadius + 1, dy: 0)
         step()
         XCTAssertTrue(scene.ball.carrier === victim)
@@ -147,6 +154,8 @@ final class MatchSceneTests: XCTestCase {
         // Make sure the human side does not carry: park the ball on an opponent far away.
         let opp = scene.players[1][3]
         opp.position = CGPoint(x: 600, y: 300)
+        scene.ball.carrier = nil               // the home kicker starts with it in hand
+        scene.ball.state = .loose
         scene.ball.position = opp.position + CGVector(dx: Tuning.playerRadius + 1, dy: 0)
         step()
         XCTAssertTrue(scene.ball.carrier === opp)
@@ -171,6 +180,37 @@ final class MatchSceneTests: XCTestCase {
         // Celebration then kickoff: the ball goes back to the centre spot.
         step(Int((Tuning.goalCelebration + 0.1) * 60))
         XCTAssertEqual(scene.ball.position, .zero)
+    }
+
+    func testTheSideThatConcedesRestartsWithTheBall() {
+        // Opening kickoff: home side, athlete on the spot with the ball in hand.
+        XCTAssertEqual(scene.kickoffTeam, 0)
+        XCTAssertEqual(scene.ball.carrier?.team, 0)
+        XCTAssertEqual(scene.ball.position, .zero)
+        stepUntilPlaying()
+        XCTAssertEqual(scene.ball.carrier?.team, 0, "the ball should still be in hand when play starts")
+
+        // Home scores: away restarts.
+        let dir = scene.attackDir[0]
+        scene.ball.carrier = nil
+        scene.ball.state = .loose
+        scene.ball.position = CGPoint(x: dir * (Tuning.fieldLength / 2 - 5), y: 0)
+        scene.ball.velocity = CGVector(dx: dir * 600, dy: 0)
+        step(3)
+        XCTAssertEqual(scene.score, [1, 0])
+        step(Int((Tuning.goalCelebration + 0.1) * 60))
+        XCTAssertEqual(scene.kickoffTeam, 1)
+        XCTAssertEqual(scene.ball.carrier?.team, 1)
+        XCTAssertFalse(scene.ball.carrier!.isGoalie)
+        XCTAssertEqual(scene.ball.position, .zero)
+
+        // Second half goes to the away side regardless of who scored last.
+        scene.clock = 0.01
+        stepUntilPlaying()
+        step(Int((Tuning.halfTimePause + 0.5) * 60))
+        XCTAssertEqual(scene.half, 2)
+        XCTAssertEqual(scene.kickoffTeam, 1)
+        XCTAssertEqual(scene.ball.carrier?.team, 1)
     }
 
     func testBallReboundsOffSideWallButNotThroughGoalMouth() {

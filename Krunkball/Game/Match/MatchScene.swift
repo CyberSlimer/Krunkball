@@ -42,6 +42,11 @@ final class MatchScene: SKScene {
     /// +1 means the team attacks towards +x, -1 towards -x. Swapped at half time.
     var attackDir: [CGFloat] = [1, -1]
     var half = 1
+    /// The side that restarts with the ball at the next kickoff: the home side to open, the away
+    /// side for the second half, and whoever conceded after a goal. Before this the ball was dropped
+    /// loose at the centre and the nearest athlete took it — with mirrored formations that was a
+    /// dead heat every time, and the tie-break handed it to team 0 at every single restart.
+    var kickoffTeam = 0
     var clock: TimeInterval
     var phase: Phase = .kickoff(Tuning.kickoffFreeze)
     var formationIndex = [0, 0]
@@ -301,7 +306,10 @@ final class MatchScene: SKScene {
                     p.position = ownGoalCenter(for: t) + CGVector(dx: dir * 40, dy: 0)
                 } else {
                     let slot = formation(for: t).slots[p.squadIndex - 1]
-                    p.position = CGPoint(x: dir * (-260 + slot.dx * 0.7), y: slot.dy * 0.85)
+                    var depth = -260 + slot.dx * 0.7
+                    // The side receiving the kickoff waits outside the centre circle.
+                    if t != kickoffTeam { depth = min(depth, -Tuning.kickoffClearance) }
+                    p.position = CGPoint(x: dir * depth, y: slot.dy * 0.85)
                 }
                 p.setHighlight(.none)
             }
@@ -310,6 +318,16 @@ final class MatchScene: SKScene {
         selected = players[humanTeam]
             .filter { !$0.isGoalie }
             .min { $0.position.distance(to: .zero) < $1.position.distance(to: .zero) }
+        // The restarting side's centre athlete steps onto the spot with the ball in hand.
+        if let taker = players[kickoffTeam]
+            .filter({ !$0.isGoalie })
+            .min(by: { $0.position.distance(to: .zero) < $1.position.distance(to: .zero) }) {
+            let dir = attackDir[kickoffTeam]
+            taker.facing = dir > 0 ? 0 : .pi
+            taker.position = CGPoint(x: -dir * (Tuning.playerRadius + Tuning.ballRadius - 3), y: 0)
+            takeBall(taker)
+            ball.position = .zero
+        }
         cam.position = .zero
         idleTime = 0
         tintGoals()
@@ -321,6 +339,7 @@ final class MatchScene: SKScene {
         half = 1
         clock = halfLength
         attackDir = [1, -1]
+        kickoffTeam = 0
         stats = [TeamStats(), TeamStats()]
         reportedResult = false
         resetForKickoff(fullRest: true)
@@ -373,6 +392,7 @@ final class MatchScene: SKScene {
                 half = 2
                 clock = halfLength
                 attackDir = attackDir.map { -$0 }
+                kickoffTeam = 1
                 resetForKickoff(fullRest: true)
                 hud.showMessage("2ND HALF")
             } else {
@@ -385,6 +405,7 @@ final class MatchScene: SKScene {
 
     func scoreGoal(for team: Int) {
         score[team] += 1
+        kickoffTeam = 1 - team
         #if DEBUG
         NSLog("KRUNK goal team=%d half=%d clock=%.1f score=%d-%d", team, half, clock, score[0], score[1])
         #endif
