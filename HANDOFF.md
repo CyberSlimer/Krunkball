@@ -1,5 +1,51 @@
 # Handoff
 
+## 2026-09-19 (Mac) — the PC branch compiles, tests pass, and the home bias is fixed
+
+`claude/crunch-ball-gameplay-feedback-3ujgtr` (written without a compiler, see the entry below)
+built **clean on the first try** on the Mac — zero errors, zero warnings from the new files — and
+all 32 of its tests passed as written. Xcode 26.6, iPhone 16 Pro Max simulator, 60 fps. Career,
+club screen, transfer market and a match were all exercised in the Simulator.
+
+### What was wrong: the benchmark ran 2.5:1 for team 0
+
+The scoring rate was inside the band the benchmark asserts, but the split was **67–26** for team 0
+over 18 matches on squads that are supposed to be equal (the 09-18 handoff had this at 4.5–3.3).
+The benchmark only checks goals per minute, so it passed. Two causes, both measured with throwaway
+probe tests before touching anything:
+
+1. **Every kickoff went to team 0 — 37 of 37.** The ball was dropped loose at the centre spot and
+   both sides' nearest athletes raced for it from mirrored formation slots. Negating an x is exact
+   in floating point, so they arrived on the same frame at the same distance, and `checkCatch`'s
+   strict `<` handed a dead heat to whichever team is iterated first. That is every restart after
+   every goal, whoever scored. Now `MatchScene.kickoffTeam` says who restarts: home to open, away
+   for the second half, and **the side that conceded** after a goal. Their centre athlete steps onto
+   the spot with the ball in hand (the ball still sits exactly on the spot, so the old kickoff
+   tests hold). The receiving side is held outside a centre circle — `Tuning.kickoffClearance`
+   (170) — because with the ball in hand the old 92 pt gap to the opposing forward meant a tackle
+   0.7 s after the whistle.
+2. **The demo squads were no longer matched.** `Roster.player` was rewritten on the PC (a lean roll
+   and the name draw consume the RNG differently), so seeds 3322/3189 produced entirely different
+   squads from the ones profiled on 09-18: Titans were +51 strength and +85 throwing in total. The
+   ±6 rating drift alarm let a 4.6-point gap through. Searched seeds 4000–7999 for a representative
+   pair within a point per stat: **4250 / 7529**, keepers 62 vs 63. The alarm in `CareerTests` is
+   now per-stat (≤1) plus keepers (≤2). If `Roster.player` changes again, reseed again.
+
+Benchmark after: **2.6–2.5, 2.9–2.4, 2.7–2.4** over three runs, ~1.3 goals/min. 33 tests green.
+
+### Leads, not chased
+
+- A residual ~15% lean remains: team 0 wins ~69% of its tackle contests, team 1 ~56%, on the
+  matched squads. `resolveTackle` itself is symmetric, so suspect order dependence in the
+  sequential `apply` pass (a pass or shot executes immediately and team 1's apply sees the new
+  ball state) or in `resolveContacts` pair order. Goals are inside the target either way.
+- The Simulator screenshot pipeline rotates; the app itself is fine.
+
+### Housekeeping
+
+- `xcodebuild -destination 'platform=iOS Simulator,name=iPhone 16 Pro Max'` failed to resolve the
+  name once; `id=8E28DDD4-EFC9-481E-A5C1-2ABDC60E0065` always works.
+
 ## 2026-09-19 — playtest feedback: controls, pace, teams, athletes
 
 Four things came back from the first real playthrough. All four are addressed here.

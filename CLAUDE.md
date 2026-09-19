@@ -36,7 +36,9 @@ Rotate the Simulator to landscape (⌘←); the app only supports landscape.
 - LF line endings (`.gitattributes`), edited from both a Windows PC and this Mac.
 - Balance target for AI vs AI: roughly **0.7–1.3 total goals per minute** of match clock (that is
   2–4 goals a side over the old 2 × 90 s). `BalanceBenchmark` asserts the per-minute rate, so it
-  survives a change to `Tuning.halfLength` — which is now 120 s a half.
+  survives a change to `Tuning.halfLength` — which is now 120 s a half. **Also read the split**:
+  the benchmark prints per-side averages and tackle stats; the two demo squads are seeded to match
+  within a point per stat, so a lopsided split is a sim bug, not roster noise.
 - Menus are SwiftUI (`Krunkball/App/Menu/`), the match is SpriteKit. The scene takes a `MatchConfig`
   and hands back a `MatchResult`; it knows nothing about careers, leagues or navigation.
 - A career save is JSON in `UserDefaults` (`CareerStore`). Changing `Career`'s shape means bumping
