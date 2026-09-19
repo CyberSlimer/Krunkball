@@ -19,6 +19,7 @@ final class PlayerNode: SKNode {
     var tackleHitPending = false      // true during a lunge until it connects with someone
     var pickupDelay: TimeInterval = 0
     var thinkTimer: TimeInterval = 0  // AI decision throttle
+    var protection: TimeInterval = 0  // cannot be tackled while > 0 (keeper just caught the ball)
 
     var maxSpeed: CGFloat { Tuning.baseSpeed + CGFloat(stats.speed) * Tuning.speedPerStat }
     var isDown: Bool { state == .down }
@@ -111,6 +112,7 @@ final class PlayerNode: SKNode {
         tackleCooldown = 0
         tackleHitPending = false
         pickupDelay = 0
+        protection = 0
         thinkTimer = 0
         refreshVisual()
     }
@@ -119,6 +121,7 @@ final class PlayerNode: SKNode {
     func tick(dt: TimeInterval) {
         tackleCooldown = max(0, tackleCooldown - dt)
         pickupDelay = max(0, pickupDelay - dt)
+        protection = max(0, protection - dt)
         thinkTimer -= dt
         switch state {
         case .active:

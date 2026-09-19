@@ -45,6 +45,24 @@ final class MatchScene: SKScene {
     /// Players assigned to press the ball this frame (see MatchScene+AI).
     var chaserIDs = Set<ObjectIdentifier>()
 
+    /// Match statistics per team, for the balance benchmark and (later) the post-match screen.
+    struct TeamStats { var shots = 0, saves = 0, tacklesWon = 0, tacklesLost = 0 }
+    var stats = [TeamStats(), TeamStats()]
+
+    /// Screen-edge insets (notch / Dynamic Island / home indicator) in view points. Set by the host controller.
+    var safeInsets = UIEdgeInsets.zero {
+        didSet { layoutOverlay() }
+    }
+    /// Debug: `KRUNKBALL_AUTOPILOT=1` in the environment hands the human side to the AI, for balance testing.
+    /// Tests flip it directly.
+    var autopilot: Bool = {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["KRUNKBALL_AUTOPILOT"] != nil
+        #else
+        return false
+        #endif
+    }()
+
     private var lastTime: TimeInterval = 0
     private var pressedKeys = Set<UIKeyboardHIDUsage>()
 
@@ -58,6 +76,9 @@ final class MatchScene: SKScene {
         if let c = ball.carrier, c.team == humanTeam { return c }
         return selected
     }
+
+    /// The athlete that actually takes stick input this frame (nobody under autopilot).
+    var humanDriven: PlayerNode? { autopilot ? nil : controlledPlayer }
 
     var scoreline: String { "\(teams[0].shortName) \(score[0]) - \(score[1]) \(teams[1].shortName)" }
 
@@ -104,8 +125,8 @@ final class MatchScene: SKScene {
     private func layoutOverlay() {
         guard size.height > 0 else { return }
         cam.setScale(Tuning.cameraVisibleHeight / size.height)
-        controls.layout(viewSize: size)
-        hud.layout(viewSize: size)
+        controls.layout(viewSize: size, insets: safeInsets)
+        hud.layout(viewSize: size, insets: safeInsets)
     }
 
     // MARK: Build
@@ -252,6 +273,9 @@ final class MatchScene: SKScene {
                     hud.showMessage("HALF TIME", sub: scoreline)
                 } else {
                     phase = .fullTime
+                    #if DEBUG
+                    NSLog("KRUNK fulltime score=%d-%d", score[0], score[1])
+                    #endif
                     hud.showMessage("FULL TIME", sub: "\(scoreline)   -   tap to play again")
                 }
             }
@@ -281,6 +305,9 @@ final class MatchScene: SKScene {
 
     func scoreGoal(for team: Int) {
         score[team] += 1
+        #if DEBUG
+        NSLog("KRUNK goal team=%d half=%d clock=%.1f score=%d-%d", team, half, clock, score[0], score[1])
+        #endif
         ball.velocity = .zero
         ball.state = .loose
         ball.carrier = nil
@@ -320,12 +347,19 @@ final class MatchScene: SKScene {
 
     private func runPlayers(_ dt: TimeInterval) {
         prepareAI()
-        let human = controlledPlayer
+        let human = humanDriven
+        // Two phases: every athlete decides from the same frame-start snapshot, then everyone moves.
+        // Deciding and moving in one pass hands whichever team is processed second a real edge (it
+        // reads the other side's already-updated positions), which showed up as a 2:1 scoring bias.
+        var decisions: [(PlayerNode, PlayerIntent)] = []
+        decisions.reserveCapacity(20)
         for team in players {
             for p in team {
-                let intent = (p === human) ? humanIntent() : aiIntent(for: p)
-                apply(intent, to: p, dt: dt)
+                decisions.append((p, (p === human) ? humanIntent() : aiIntent(for: p)))
             }
+        }
+        for (p, intent) in decisions {
+            apply(intent, to: p, dt: dt)
         }
     }
 
@@ -397,9 +431,14 @@ final class MatchScene: SKScene {
                     b.position = b.position + n * push
                 }
                 guard a.team != b.team else { continue }
-                if a.state == .tackling && a.tackleHitPending && !b.isDown {
+                let aLunging = a.state == .tackling && a.tackleHitPending && !b.isDown && b.protection <= 0
+                let bLunging = b.state == .tackling && b.tackleHitPending && !a.isDown && a.protection <= 0
+                if aLunging && bLunging {
+                    // Head-on: neither side gets to be "the tackler" by virtue of list order.
+                    if Bool.random() { resolveTackle(tackler: a, victim: b) } else { resolveTackle(tackler: b, victim: a) }
+                } else if aLunging {
                     resolveTackle(tackler: a, victim: b)
-                } else if b.state == .tackling && b.tackleHitPending && !a.isDown {
+                } else if bLunging {
                     resolveTackle(tackler: b, victim: a)
                 }
             }
@@ -431,12 +470,18 @@ final class MatchScene: SKScene {
         let k = smoothFactor(rate: Tuning.cameraFollowRate, dt: CGFloat(dt))
         var pos = cam.position + (target - cam.position) * k
 
+        // Keep the whole deck (goals included) out from under the notch / Dynamic Island: the visible
+        // edge on each side is pulled in by that side's safe-area inset.
         let halfW = size.width / 2 * cam.xScale
         let halfH = size.height / 2 * cam.yScale
-        let limX = Tuning.fieldLength / 2 + Tuning.wallMargin - halfW
-        let limY = Tuning.fieldWidth / 2 + Tuning.wallMargin - halfH
-        pos.x = limX > 0 ? clamp(pos.x, -limX, limX) : 0
-        pos.y = limY > 0 ? clamp(pos.y, -limY, limY) : 0
+        let worldHalfL = Tuning.fieldLength / 2 + Tuning.wallMargin
+        let worldHalfW = Tuning.fieldWidth / 2 + Tuning.wallMargin
+        let minX = -worldHalfL - safeInsets.left * cam.xScale + halfW
+        let maxX = worldHalfL + safeInsets.right * cam.xScale - halfW
+        let minY = -worldHalfW - safeInsets.bottom * cam.yScale + halfH
+        let maxY = worldHalfW + safeInsets.top * cam.yScale - halfH
+        pos.x = minX < maxX ? clamp(pos.x, minX, maxX) : (minX + maxX) / 2
+        pos.y = minY < maxY ? clamp(pos.y, minY, maxY) : (minY + maxY) / 2
         cam.position = pos
     }
 

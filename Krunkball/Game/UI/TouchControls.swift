@@ -59,9 +59,9 @@ final class TouchControls: SKNode {
         button.addChild(label)
     }
 
-    func layout(viewSize: CGSize) {
-        let hw = viewSize.width / 2
-        let hh = viewSize.height / 2
+    func layout(viewSize: CGSize, insets: UIEdgeInsets = .zero) {
+        let hw = viewSize.width / 2 - insets.right
+        let hh = viewSize.height / 2 - insets.bottom
         let inset: CGFloat = 52
         secondaryButton.position = CGPoint(x: hw - inset - 6, y: -hh + inset + 40)
         primaryButton.position = CGPoint(x: hw - inset - 104, y: -hh + inset)

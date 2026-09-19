@@ -62,9 +62,9 @@ final class HUD: SKNode {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func layout(viewSize: CGSize) {
-        let hw = viewSize.width / 2
-        let hh = viewSize.height / 2
+    func layout(viewSize: CGSize, insets: UIEdgeInsets = .zero) {
+        let hw = viewSize.width / 2 - insets.right
+        let hh = viewSize.height / 2 - insets.top
         panel.position = CGPoint(x: 0, y: hh - 44)
         formationButton.position = CGPoint(x: hw - 52 - 64, y: hh - 44)
     }

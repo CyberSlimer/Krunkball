@@ -24,6 +24,7 @@ final class GameViewController: UIViewController {
         #endif
 
         let scene = MatchScene(teams: Roster.demoTeams(), size: skView.bounds.size)
+        scene.safeInsets = view.safeAreaInsets
         matchScene = scene
         skView.presentScene(scene)
     }
@@ -31,6 +32,11 @@ final class GameViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         becomeFirstResponder()
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        matchScene?.safeInsets = view.safeAreaInsets
     }
 
     // MARK: Hardware keyboard (Simulator / iPad keyboard) — WASD or arrows, G / H / J like the original

@@ -8,7 +8,7 @@ extension MatchScene {
     /// Decide, once per frame, which athletes on each side press the ball. Everyone else holds shape.
     func prepareAI() {
         chaserIDs.removeAll()
-        let human = controlledPlayer
+        let human = humanDriven
         for t in 0..<2 {
             let opponentHasBall = ball.carrier != nil && ball.carrier?.team != t
             let ballLoose = ball.carrier == nil
@@ -118,11 +118,19 @@ extension MatchScene {
             p.thinkTimer = Tuning.aiThinkInterval
             let shootRange = Tuning.aiShootRange + CGFloat(p.stats.throwing) * 1.6
             let underPressure = pressure < Tuning.aiPressureDistance
-            if distGoal < shootRange && (underPressure || distGoal < 240 || CGFloat.random(in: 0...1) < 0.08) {
+            if distGoal < Tuning.aiCloseShotRange {
+                // Point blank: let it fly.
                 intent.shoot = true
-            } else if underPressure, let t = openTeammate(for: p) {
-                intent.pass = true
-                intent.aim = (t.position - p.position).normalized
+            } else if underPressure {
+                // Closed down: move it on if anyone is open, otherwise have a go if in range.
+                if let t = openTeammate(for: p) {
+                    intent.pass = true
+                    intent.aim = (t.position - p.position).normalized
+                } else if distGoal < shootRange {
+                    intent.shoot = true
+                }
+            } else if distGoal < shootRange && CGFloat.random(in: 0...1) < Tuning.aiSpeculativeShotChance {
+                intent.shoot = true
             }
         }
         return intent
@@ -159,29 +167,52 @@ extension MatchScene {
         let own = ownGoalCenter(for: t)
 
         if ball.carrier === p {
-            // Step out and distribute to the best option; fall back to any upright outfielder.
-            intent.move = CGVector(dx: dir, dy: 0)
+            // Distribute to the best option; with nobody open, hoof it long downfield rather than
+            // dribble out into the press.
             if p.thinkTimer <= 0 {
-                p.thinkTimer = 0.4
-                let fallback = players[t].first { !$0.isGoalie && !$0.isDown }
-                if let target = openTeammate(for: p) ?? fallback {
-                    intent.pass = true
+                p.thinkTimer = Tuning.keeperDistributionDelay
+                intent.pass = true
+                if let target = openTeammate(for: p) {
                     intent.aim = (target.position - p.position).normalized
+                } else {
+                    intent.aim = CGVector(dx: dir, dy: CGFloat.random(in: -0.5...0.5)).normalized
                 }
             }
             return intent
         }
 
-        // Come off the line for a loose ball nearby; otherwise shadow the ball along the goal line.
-        let ballDist = p.position.distance(to: ball.position)
-        if ball.carrier == nil && ballDist < 150 && abs(ball.position.x - own.x) < 260 {
-            intent.move = (ball.position - p.position).normalized
-            return intent
+        let lineX = own.x + dir * 34
+
+        // A shot is coming: read where it crosses the line and get there at full tilt.
+        if ball.state == .flight, ball.velocity.dx * dir < -1 {
+            let t = (lineX - ball.position.x) / ball.velocity.dx
+            if t > 0, t < Tuning.keeperReadAhead {
+                let reach = Tuning.goalHalfWidth + Tuning.playerRadius
+                let yAt = clamp(ball.position.y + ball.velocity.dy * t, -reach, reach)
+                let d = CGPoint(x: lineX, y: yAt) - p.position
+                if d.length > 2 { intent.move = d.normalized }
+                return intent
+            }
         }
 
-        let lineX = own.x + dir * 34
-        let reach = Tuning.goalHalfWidth * 0.8
-        let targetY = clamp(ball.position.y * 0.6, -reach, reach)
+        // Come off the line for a loose ball nearby, but only when nobody else will get there first;
+        // otherwise shadow the ball along the goal line.
+        let ballDist = p.position.distance(to: ball.position)
+        if ball.carrier == nil && ballDist < 150 && abs(ball.position.x - own.x) < 260 {
+            let others = players[0] + players[1]
+            let rivalDist = others
+                .filter { $0 !== p && !$0.isDown }
+                .map { $0.position.distance(to: ball.position) }
+                .min() ?? .greatestFiniteMagnitude
+            if ballDist < rivalDist + 20 {
+                intent.move = (ball.position - p.position).normalized
+                return intent
+            }
+        }
+
+        // Shadow the ball: bias towards the line the carrier is on rather than sitting in the middle.
+        let reach = Tuning.goalHalfWidth * 0.85
+        let targetY = clamp(ball.position.y * 0.75, -reach, reach)
         let d = CGPoint(x: lineX, y: targetY) - p.position
         if d.length > 4 { intent.move = d.normalized * min(1, d.length / 40) }
 

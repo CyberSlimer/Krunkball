@@ -86,16 +86,18 @@ enum Roster {
         return TeamData(name: name, shortName: shortName, primary: primary, secondary: secondary, players: players)
     }
 
+    /// Seeds were picked so both squads profile the same (avg speed / strength / back line / forwards
+    /// all ~60): the prototype's balance benchmark depends on it.
     static func demoTeams() -> [TeamData] {
         [
             generateTeam(name: "Neo Tokyo Titans", shortName: "TITANS",
                          primary: SKColor(red: 0.15, green: 0.55, blue: 1.0, alpha: 1),
                          secondary: SKColor(red: 0.95, green: 0.95, blue: 1.0, alpha: 1),
-                         quality: 60, seed: 3000),
+                         quality: 60, seed: 3322),
             generateTeam(name: "Mars Colony Crushers", shortName: "CRUSHERS",
                          primary: SKColor(red: 0.95, green: 0.25, blue: 0.2, alpha: 1),
                          secondary: SKColor(red: 0.1, green: 0.1, blue: 0.12, alpha: 1),
-                         quality: 58, seed: 3001),
+                         quality: 60, seed: 3189),
         ]
     }
 }

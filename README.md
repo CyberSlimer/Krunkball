@@ -70,9 +70,18 @@ Krunkball/
 docs/DESIGN.md    original-game reference, improvements list, roadmap
 ```
 
+## Tests
+
+```bash
+xcodebuild -project Krunkball.xcodeproj -scheme Krunkball \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro Max' test
+```
+
+`KrunkballTests` drives the match headlessly: mechanics (pickup, pass, shoot, tackle, switch, goals,
+walls, a full match to full time) plus `BalanceBenchmark`, ten AI-vs-AI matches that must average
+between 2 and 9 goals. Run it after touching `Tuning.swift` or the AI.
+
 ## Status
 
-Written on a Windows machine without a Swift toolchain, so the first compile happens on your Mac.
-The code sticks to long-standing SpriteKit / UIKit API, but expect the usual first-build pass of a
-few fixes. Once it builds, the first things to tune are `cameraVisibleHeight`, `baseSpeed`, and the
-tackle numbers.
+Builds and runs on the Mac (Xcode 26.6). See `HANDOFF.md` for what the first Mac session changed and
+what is next; `CLAUDE.md` for the working rules.

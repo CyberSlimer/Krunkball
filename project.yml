@@ -40,3 +40,16 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rprobst.krunkball
         SUPPORTS_MACCATALYST: NO
+    scheme:
+      testTargets:
+        - KrunkballTests
+  KrunkballTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: KrunkballTests
+    dependencies:
+      - target: Krunkball
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rprobst.krunkball.tests

@@ -14,6 +14,7 @@ extension MatchScene {
         if victim.state != .active { defense -= 20 }
 
         if attack >= defense {
+            stats[tackler.team].tacklesWon += 1
             let dir = tackler.velocity.normalized
             victim.knockDown(for: Tuning.knockdownDuration)
             victim.velocity = dir * 160
@@ -23,6 +24,7 @@ extension MatchScene {
             }
             tackler.velocity = tackler.velocity * 0.4
         } else {
+            stats[tackler.team].tacklesLost += 1
             tackler.knockDown(for: Tuning.failedTackleDuration)
             tackler.velocity = -tackler.velocity.normalized * 120
         }
@@ -49,6 +51,7 @@ extension MatchScene {
         ball.airTime = 0
         ball.throwerImmunity = 0
         ball.setAirborne(false)
+        if p.isGoalie { p.protection = Tuning.keeperCatchProtection }
 
         if p.team == humanTeam {
             selected = p
@@ -99,9 +102,10 @@ extension MatchScene {
         let maxAim = Tuning.goalHalfWidth * 0.85
         let aimY = clamp(aim.dy * maxAim, -maxAim, maxAim)
         var dir = (CGPoint(x: goal.x, y: aimY) - p.position).normalized
-        let spread = (1 - CGFloat(p.stats.throwing) / 100) * 0.16
+        let spread = (1 - CGFloat(p.stats.throwing) / 100) * Tuning.shotSpread
         dir = CGVector(angle: dir.angle + CGFloat.random(in: -spread...spread))
         let speed = Tuning.shotSpeedBase + CGFloat(p.stats.throwing) * Tuning.shotSpeedPerStat
+        stats[p.team].shots += 1
         release(from: p, direction: dir, speed: speed, airTime: Tuning.shotAirTime)
     }
 
@@ -217,12 +221,16 @@ extension MatchScene {
                 guard !p.isDown, p.pickupDelay <= 0 else { continue }
                 if excludeThrower && p === ball.lastThrower { continue }
                 let d = p.position.distance(to: ball.position)
-                if d < reach && d < bestDist {
+                let r = reach + (p.isGoalie ? Tuning.keeperCatchBonus : 0)
+                if d < r && d < bestDist {
                     bestDist = d
                     best = p
                 }
             }
         }
-        if let p = best { takeBall(p) }
+        if let p = best {
+            if p.isGoalie && ball.state == .flight { stats[p.team].saves += 1 }
+            takeBall(p)
+        }
     }
 }

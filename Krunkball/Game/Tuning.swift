@@ -42,6 +42,7 @@ enum Tuning {
     static let ballDragPerSecond: CGFloat = 0.22      // fraction of velocity kept after 1 s rolling
     static let wallRestitution: CGFloat = 0.72
     static let catchSlack: CGFloat = 4
+    static let shotSpread: CGFloat = 0.26             // max aim error (radians) at throwing 0; 0 at throwing 100
 
     // MARK: Match
     static let halfLength: TimeInterval = 90
@@ -51,9 +52,15 @@ enum Tuning {
 
     // MARK: AI
     static let aiThinkInterval: TimeInterval = 0.15
-    static let aiShootRange: CGFloat = 360
+    static let aiShootRange: CGFloat = 300           // + throwing * 1.6; shoots from here when closed down
+    static let aiCloseShotRange: CGFloat = 240       // always shoots from here
     static let aiPressureDistance: CGFloat = 80
-    static let aiChasersPerTeam = 2
+    static let aiSpeculativeShotChance: CGFloat = 0.03  // per think tick, in range but not under pressure
+    static let aiChasersPerTeam = 3
+    static let keeperDistributionDelay: TimeInterval = 0.25
+    static let keeperCatchProtection: TimeInterval = 0.6   // keeper cannot be tackled this long after a catch
+    static let keeperReadAhead: TimeInterval = 1.5   // how far ahead the keeper reads a shot's path (s)
+    static let keeperCatchBonus: CGFloat = 10        // extra catch reach for keepers (gloves)
 
     // MARK: Camera
     static let cameraVisibleHeight: CGFloat = 640     // world points shown top-to-bottom
